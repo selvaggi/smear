@@ -23,7 +23,7 @@ except:
 
 # ______________________________________________________________________________
 
-nev_debug = 1000
+nev_debug = 10
 debug = False
 debug2 = False
 
@@ -42,9 +42,16 @@ numberOfEntries = treeReader.GetEntries()
 branchParticle = treeReader.UseBranch("Particle")
 
 # import detector configs
-idea_base = Detector(cfg_idea)
 
-detectors = OrderedDict()
+detectors = [
+    Detector(cfg_idea),
+    Detector(cfg_idea_perfect),
+    Detector(cfg_atlas_perfect),
+    Detector(cfg_cms_perfect),
+    Detector(cfg_ideacry_perfect),
+]
+
+# detectors = OrderedDict()
 histograms = OrderedDict()
 
 
@@ -59,7 +66,7 @@ def calc_prof_params(binsize, xmin, xmax):
 
 
 # in MeV have to convert in GeV
-p_binsize = 10
+p_binsize = 50
 p_min = 0
 p_max = 1000
 
@@ -84,15 +91,15 @@ eta_cuts = theta_to_eta(theta_cuts)
 
 
 # mass plots
-mass_binsize = 0.001
+mass_binsize = 0.1
 mass_min = 0
-mass_max = 2
+mass_max = 150
 mass_nbins = int(float(mass_max - mass_min) / mass_binsize)
 
 # evis plots
-evis_binsize = 0.001
+evis_binsize = 0.1
 evis_min = 0
-evis_max = 2
+evis_max = 150
 evis_nbins = int(float(evis_max - evis_min) / evis_binsize)
 
 """ cumulative plots """
@@ -157,52 +164,47 @@ for collname in ["gentracks", "genphotons", "gennhadrons"]:
     )
 
 for subdet in ["tracker", "ecal", "hcal"]:
-    hname_mass = "hmass_{}_idea".format(subdet)
-    hname_evis = "hevis_{}_idea".format(subdet)
-
-    histograms[hname_mass] = ROOT.TH1F(hname_mass, hname_mass, 200, 50, 150)
-    histograms[hname_evis] = ROOT.TH1F(hname_evis, hname_evis, 200, 50, 150)
-
-""" p min plots """
-for pcut in p_cuts:
-    detname = "perfect_pcut_{}".format(pcut)
-    cfg_det = copy.deepcopy(cfg_perfect)
-    cfg_det["name"] = detname
-
-    for subdet in ["tracker", "ecal", "hcal"]:
-        hname_mass = "hmass_{}_{}".format(subdet, detname)
-        hname_evis = "hevis_{}_{}".format(subdet, detname)
-
-        cfg_det[subdet]["eff"] = (0.001 * float(pcut), cfg_det[subdet]["eff"][1])
+    for det in detectors:
+        hname_mass = "hmass_{}_{}".format(det.cfg["name"], subdet)
+        hname_evis = "hevis_{}_{}".format(det.cfg["name"], subdet)
         histograms[hname_mass] = ROOT.TH1F(
             hname_mass, hname_mass, mass_nbins, mass_min, mass_max
         )
         histograms[hname_evis] = ROOT.TH1F(
-            hname_evis, hname_evis, evis_nbins, evis_min, evis_max
+            hname_evis, hname_evis, mass_nbins, mass_min, mass_max
         )
 
-    detectors[detname] = Detector(cfg_det)
+detector_variations = []
+for det in detectors:
+    # p min plots
+    for pcut in p_cuts:
+        for subdet in ["tracker", "ecal", "hcal"]:
+            detname = "{}_{}_pcut_{}".format(det.cfg["name"], subdet, pcut)
+            cfg_det = copy.deepcopy(det.cfg)
+            cfg_det["name"] = detname
 
+            hname_mass = "hmass_{}".format(detname)
+            hname_evis = "hevis_{}".format(detname)
+            hname_mass_norm = "hmass_norm_{}".format(detname)
+            hname_evis_norm = "hevis_norm_{}".format(detname)
 
-""" theta plots """
-for thetacut in theta_cuts:
-    detname = "perfect_thetacut_{}".format(thetacut)
-    cfg_det = copy.deepcopy(cfg_perfect)
-    cfg_det["name"] = detname
+            # print(detname, 0.001 * float(pcut))
+            cfg_det[subdet]["eff"] = (0.001 * float(pcut), cfg_det[subdet]["eff"][1])
+            histograms[hname_mass_norm] = ROOT.TH1F(
+                hname_mass_norm, hname_mass_norm, mass_nbins, 0.0, 2.0
+            )
+            histograms[hname_evis_norm] = ROOT.TH1F(
+                hname_evis_norm, hname_evis_norm, evis_nbins, 0.0, 2.0
+            )
 
-    for subdet in ["tracker", "ecal", "hcal"]:
-        hname_mass = "hmass_{}_{}".format(subdet, detname)
-        hname_evis = "hevis_{}_{}".format(subdet, detname)
+            histograms[hname_mass] = ROOT.TH1F(
+                hname_mass, hname_mass, mass_nbins, mass_min, mass_max
+            )
+            histograms[hname_evis] = ROOT.TH1F(
+                hname_evis, hname_evis, evis_nbins, evis_min, evis_max
+            )
 
-        cfg_det[subdet]["eff"] = (cfg_det[subdet]["eff"][0], theta_to_eta(thetacut))
-        histograms[hname_mass] = ROOT.TH1F(
-            hname_mass, hname_mass, mass_nbins, mass_min, mass_max
-        )
-        histograms[hname_evis] = ROOT.TH1F(
-            hname_evis, hname_evis, evis_nbins, evis_min, evis_max
-        )
-
-    detectors[detname] = Detector(cfg_det)
+            detector_variations.append(Detector(cfg_det))
 
 
 if debug:
@@ -253,7 +255,6 @@ for entry in range(0, numberOfEntries):
 
         fill_p_hist(globals()[collname], histograms[hname_p])
 
-        """
         fill_nleft_hist_p(globals()[collname], p_cuts, histograms[hname_nleftp])
         fill_nleft_hist_theta(
             globals()[collname], eta_cuts, histograms[hname_nlefttheta]
@@ -266,21 +267,42 @@ for entry in range(0, numberOfEntries):
         fill_frac_hist_theta(
             globals()[collname], genall, eta_cuts, histograms[hname_fractheta]
         )
-        """
+
     """ now perform reconstruction """
 
-    reco_coll = idea_base.reco_event(gentracks, genphotons, gennhadrons)
-    tracks, photons, nhadrons = reco_coll
-    tracks_and_photons = tracks + photons
-    all = tracks_and_photons + nhadrons
+    """
+    for det in detectors:
+        reco_coll = det.reco_event(gentracks, genphotons, gennhadrons)
+        tracks, photons, nhadrons = reco_coll
+        tracker = tracks
+        ecal = tracks + photons
+        hcal = ecal + nhadrons
 
-    fill_mass_hist(tracks, histograms["hmass_tracker_idea"])
-    fill_mass_hist(tracks_and_photons, histograms["hmass_ecal_idea"])
-    fill_mass_hist(all, histograms["hmass_hcal_idea"])
+        for subdet in ["tracker", "ecal", "hcal"]:
 
-    fill_evis_hist(tracks, histograms["hevis_tracker_idea"])
-    fill_evis_hist(tracks_and_photons, histograms["hevis_ecal_idea"])
-    fill_evis_hist(all, histograms["hevis_hcal_idea"])
+            hname_mass = "hmass_{}_{}".format(det.cfg["name"], subdet)
+            hname_evis = "hevis_{}_{}".format(det.cfg["name"], subdet)
+
+            fill_mass_hist(globals()[subdet], histograms[hname_mass])
+            fill_evis_hist(globals()[subdet], histograms[hname_evis])
+    """
+    for det in detector_variations:
+
+        reco_coll = det.reco_event(gentracks, genphotons, gennhadrons)
+        tracks, photons, nhadrons = reco_coll
+        all = tracks + photons + nhadrons
+
+        hname_mass = "hmass_{}".format(det.cfg["name"])
+        hname_evis = "hevis_{}".format(det.cfg["name"])
+
+        hname_mass_norm = "hmass_norm_{}".format(det.cfg["name"])
+        hname_evis_norm = "hevis_norm_{}".format(det.cfg["name"])
+
+        fill_mass_hist(all, histograms[hname_mass])
+        fill_evis_hist(all, histograms[hname_evis])
+
+        fill_mass_hist(all, histograms[hname_mass_norm], mh0)
+        fill_evis_hist(all, histograms[hname_evis_norm], eh0)
 
     """
     for detname, det in detectors.items():
@@ -297,7 +319,6 @@ for entry in range(0, numberOfEntries):
         hname_evis_ecal = "hevis_ecal_{}".format(detname)
         hname_evis_hcal = "hevis_hcal_{}".format(detname)
 
-
         fill_mass_hist(tracks, histograms[hname_mass_tracker], mh0)
         fill_mass_hist(tracks_and_photons, histograms[hname_mass_ecal], mh0)
         fill_mass_hist(all, histograms[hname_mass_hcal], mh0)
@@ -305,7 +326,7 @@ for entry in range(0, numberOfEntries):
         fill_evis_hist(tracks, histograms[hname_evis_tracker], eh0)
         fill_evis_hist(tracks_and_photons, histograms[hname_evis_ecal], eh0)
         fill_evis_hist(all, histograms[hname_evis_hcal], eh0)
-   """
+    """
 
 # Show resulting histograms
 out_root = ROOT.TFile(outputFile, "RECREATE")

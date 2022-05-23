@@ -2,6 +2,7 @@ import numpy as np
 import ROOT
 from ROOT import TLorentzVector
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 ROOT.gSystem.Load("libDelphes")
 
@@ -495,26 +496,61 @@ def plotRootHistograms(
         hist = file.Get(hname)
 
         x, y = [], []
+        integral = 1.0
+        if "normalize" in config and config["normalize"]:
+            integral = hist.Integral(0, hist.GetNbinsX() + 1)
+        if "rebin" in config:
+            hist.Rebin(config["rebin"])
+        if "normfirstbin" in config and config["normfirstbin"]:
+            integral = hist.GetBinContent(1)
+
         for i in range(1, hist.GetNbinsX() + 1):
             x.append(hist.GetBinCenter(i))
-            y.append(hist.GetBinContent(i))
+            y.append(hist.GetBinContent(i) / integral)
 
-        ax.plot(x, y, label="{}".format(sample["label"]))
+        # ax.plot(x, y, label="{}".format(sample["label"]))
 
-    ax.legend(loc=config["leg_loc"], frameon=False)
+        ax.hist(
+            x,
+            len(x),
+            weights=y,
+            label="{}".format(sample["label"]),
+            histtype="step",
+            linewidth=2,
+        )
+
+    # Create new legend handles but use the colors from the existing ones
+    handles, labels = ax.get_legend_handles_labels()
+    new_handles = [Line2D([], [], c=h.get_edgecolor()) for h in handles]
+    ax.legend(
+        handles=new_handles,
+        labels=labels,
+        frameon=False,
+        loc=config["leg_loc"],
+        # fontsize=10,
+    )
+    if "text" in config:
+        ax.text(
+            0.20,
+            0.90,
+            config["text"],
+            verticalalignment="top",
+            horizontalalignment="left",
+            transform=ax.transAxes,
+        )
+
     ax.set_xlabel(config["title_x"])
     ax.set_ylabel(config["title_y"])
     ax.grid(linestyle="dashed")
     if "ymin" in config and "ymax" in config:
-        ax.set_ylim(plot["ymin"], plot["ymax"])
+        ax.set_ylim(config["ymin"], config["ymax"])
 
     # ax.set_xscale("log")
-    # ax.set_yscale(plot["yscale"])
+    if "yscale" in config:
+        ax.set_yscale(config["yscale"])
     fig.tight_layout()
-    fig.savefig("figs/{}.pdf".format(config["name"]))
+    # fig.savefig("figs/{}.pdf".format(config["name"]))
     fig.savefig("figs/{}.png".format(config["name"]))
-
-    return fig, ax
 
 
 # _______________________________________________________________________________
@@ -560,3 +596,86 @@ def plotBlockHistograms(samples, config_list, name):
     fig.tight_layout()
     fig.savefig("figs/{}.pdf".format(name))
     fig.savefig("figs/{}.png".format(name))
+
+
+# _______________________________________________________________________________
+class Data:
+    def __init__(self, filepath, histname, label):
+        self.filepath = filepath  #
+        self.histname = histname  #
+        self.label = label  #
+
+
+# _______________________________________________________________________________
+def plotHistograms(config):
+    fig, ax = plt.subplots()
+    samples = config["data"]
+    for sample in samples:
+        filename = sample["filename"]
+        file = ROOT.TFile(filename)
+        hname = sample["histname"]
+        hist = file.Get(hname)
+        # print(sample, sample["histname"])
+        x, y = [], []
+        integral = 1.0
+        if "normalize" in config and config["normalize"]:
+            integral = hist.Integral(0, hist.GetNbinsX() + 1)
+        if "normfirstbin" in config and config["normfirstbin"]:
+            integral = hist.GetBinContent(1)
+
+        if "rebin" in config:
+            hist.Rebin(config["rebin"])
+
+        for i in range(1, hist.GetNbinsX() + 1):
+            x.append(hist.GetBinCenter(i))
+            y.append(hist.GetBinContent(i) / integral)
+
+        # ax.plot(x, y, label="{}".format(sample["label"]))
+
+        ax.hist(
+            x,
+            len(x),
+            weights=y,
+            label="{}".format(sample["label"]),
+            histtype="step",
+            linewidth=2,
+        )
+
+    # Create new legend handles but use the colors from the existing ones
+    handles, labels = ax.get_legend_handles_labels()
+    new_handles = [Line2D([], [], c=h.get_edgecolor()) for h in handles]
+    ax.legend(
+        handles=new_handles,
+        labels=labels,
+        frameon=False,
+        loc=config["leg_loc"],
+        fontsize=10,
+    )
+    if "text" in config:
+        for text in config["text"]:
+            ax.text(
+                text["location"][0],
+                text["location"][1],
+                text["content"],
+                verticalalignment="top",
+                horizontalalignment="left",
+                transform=ax.transAxes,
+                weight="bold",
+            )
+
+    ax.set_xlabel(config["title_x"])
+    ax.set_ylabel(config["title_y"])
+    ax.grid(linestyle="dashed")
+    if "ymin" in config and "ymax" in config:
+        ax.set_ylim(config["ymin"], config["ymax"])
+    if "xmin" in config and "xmax" in config:
+        ax.set_xlim(config["xmin"], config["xmax"])
+
+    # ax.set_xscale("log")
+    if "yscale" in config:
+        ax.set_yscale(config["yscale"])
+    fig.tight_layout()
+    # fig.savefig("figs/{}.pdf".format(config["name"]))
+    fig.savefig("figs/{}.png".format(config["name"]))
+
+    return fig, ax

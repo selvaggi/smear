@@ -83,7 +83,7 @@ class Detector:
                     reco_p4.M(),
                 )
 
-            if reco_pt < self.cfg["tracker"]["eff"][0]:
+            if reco_p4.P() < self.cfg["tracker"]["eff"][0]:
                 continue
             if abs(eta) > self.cfg["tracker"]["eff"][1]:
                 continue
@@ -151,8 +151,8 @@ class Detector:
                     ", M: ",
                     reco_p4.M(),
                 )
-
-            if reco_e < self.cfg["ecal"]["eff"][0]:
+            # print(reco_p4.P(), self.cfg["ecal"]["eff"][0])
+            if reco_p4.P() < self.cfg["ecal"]["eff"][0]:
                 continue
             if abs(eta) > self.cfg["ecal"]["eff"][1]:
                 continue
@@ -222,7 +222,7 @@ class Detector:
                     reco_p4.M(),
                 )
 
-            if reco_e < self.cfg["hcal"]["eff"][0]:
+            if reco_p4.P() < self.cfg["hcal"]["eff"][0]:
                 continue
             if abs(eta) > self.cfg["hcal"]["eff"][1]:
                 continue

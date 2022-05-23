@@ -14,6 +14,44 @@ import matplotlib.pyplot as plt
 # _______________________________________________________________________________
 """ main """
 
+
+observables = [
+    {"name": "mass_norm", "label": r"$M_{vis} [GeV]$", "title": "visible mass"},
+    # {"name": "evis", "label": r"$E_{vis}$ [GeV]", "title": "visible energy"},
+]
+
+variables = [
+    {
+        "name": "pcut",
+        "histn": "p",
+        "label": r"$p_{min}$ [GeV]",
+    },
+]
+
+
+resolution_plots = []
+for variable in variables:
+    for observable in observables:
+        for metric in metrics:
+            resolution_plots.append(
+                {
+                    "name": "{}_{}_{}".format(
+                        observable["name"], metric["name"], variable["name"]
+                    ),
+                    "observable": observable,
+                    "variable": variable,
+                    "metric": metric,
+                    "title_x": variable["label"],
+                    "title_y": metric["label"],
+                    "yscale": "linear",
+                    "leg_loc": "upper left",
+                }
+            )
+
+
+collection = "ecal"
+detector = "idea"
+
 datasets = dict()
 for sample in samples:
     for variable in variables:
@@ -28,18 +66,23 @@ for sample in samples:
             dataset_name = "{}_{}_{}_{}_{}".format(
                 sample["name"],
                 observable["name"],
-                collection,
                 detector,
+                collection,
                 variable["name"],
             )
             for key in file.GetListOfKeys():
                 histname_prefix = "h{}_{}_{}_{}_".format(
-                    observable["name"], collection, detector, variable["name"]
+                    observable["name"],
+                    detector,
+                    collection,
+                    variable["name"],
                 )
+
                 if histname_prefix in key.GetName():
-                    print(key.GetName())
+
                     hname = key.GetName()
                     hist = file.Get(hname)
+                    hist.Rebin(2)
 
                     xval = float(hname.split("_")[-1])
                     x.append(xval)
@@ -53,6 +96,7 @@ for sample in samples:
                     sigma = getEffSigma(hist, wmin=0.0, wmax=2.0, epsilon=0.01)
                     # sigma = getFWHM(hist) / 2.35
 
+                    print(hname, mode, sigma)
                     if mode > 0:
                         sig.append(sigma / mode)
                     else:
@@ -61,6 +105,8 @@ for sample in samples:
 
             df = pd.DataFrame({variable["name"]: x, "response": mu, "resolution": sig})
             df.name = dataset_name
+            print(df.name)
+            print(df)
             datasets[dataset_name] = df
 
 
@@ -72,16 +118,16 @@ for plot in resolution_plots:
         observable_name = plot["observable"]["name"]
         variable_name = plot["variable"]["name"]
         dataset_name = "{}_{}_{}_{}_{}".format(
-            sample_name,
-            observable_name,
-            collection,
+            sample["name"],
+            observable["name"],
             detector,
-            variable_name,
+            collection,
+            variable["name"],
         )
 
         metric_name = plot["metric"]["name"]
         df = datasets[dataset_name]
-        print(df)
+        # print(df)
         x = df[variable_name]
         y = df[metric_name]
 
@@ -92,41 +138,8 @@ for plot in resolution_plots:
     ax.set_ylabel(plot["title_y"])
     ax.grid(linestyle="dashed")
 
-    """
-    if "ymin" in plot and "ymax" in plot:
-        ax.set_ylim(plot["ymin"], plot["ymax"])
-    """
-
     # ax.set_xscale("log")
     # ax.set_yscale(plot["yscale"])
     fig.tight_layout()
-    fig.savefig("figs/{}.pdf".format(plot["name"]))
+    # fig.savefig("figs/{}.pdf".format(plot["name"]))
     fig.savefig("figs/{}.png".format(plot["name"]))
-
-"""
-    for plot in plots:
-        varname = plot["name"]
-        array_y = globals()[varname]
-        ax = plot["plot"][1]
-        linestyle = "solid"
-        if s.d == 80:
-            linestyle = "dotted"
-        ax.plot(fluence, array_y, linestyle=linestyle, label="{}".format(s.label))
-
-
-ax.plot(xs, mus, linestyle=linestyle, label="{}".format(label))
-
-ax.legend(loc=plot["leg_loc"], frameon=False)
-ax.set_xlabel(title_x)
-ax.set_ylabel(plot["title_y"])
-ax.grid(linestyle="dashed")
-
-if "ymin" in plot and "ymax" in plot:
-    ax.set_ylim(plot["ymin"], plot["ymax"])
-ax.set_xscale("log")
-ax.set_yscale(plot["yscale"])
-fig.tight_layout()
-fig.savefig("figs/{}.pdf".format(plot["name"]))
-fig.savefig("figs/{}.png".format(plot["name"]))
-
-"""
